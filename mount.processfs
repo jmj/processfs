@@ -1,0 +1,16 @@
+#!/usr/bin/python
+
+## testing
+import sys
+sys.path.append('/home/jmjone/src/processfs/src')
+
+from processfs import processfs
+
+if __name__ == '__main__':
+    fs = processfs()
+    fs.flags = 0
+    fs.multithreaded = 0
+    fs.parse()
+    fs.main()
+
+
