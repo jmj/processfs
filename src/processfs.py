@@ -56,7 +56,7 @@ class processfs(fuse.Fuse):
         self.files[path] = dict()
 
     # obvious - see the syscall
-    # Note, offset is always ignores. There'll be no appending here
+    # Note, offset is always ignored. There'll be no appending here
     ## if we are not creating a new file, buf should be sent to proc
     ## stdin
     @has_ent
@@ -65,6 +65,9 @@ class processfs(fuse.Fuse):
 
         # do basic exec and perm checks - return EINVAL if user would
         # no be able to exec buf
+
+        # Until pipes are worked out, retuen EACCES if a proc is already
+        # associated with the file
         if self.files[path].has_key('process'):
             return -errno.EACCES
         self.files[path]['process'] = buf
