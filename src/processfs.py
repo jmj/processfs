@@ -37,10 +37,16 @@ class processfs(fuse.Fuse):
         st.st_mtime = st.st_atime
         st.st_ctime = st.st_atime
 
+        # we don't do subdirs.  Is there a need?
+        ## Should each proc be a dir?  May have interesting possibilities
+        ##  with files like cmd line/stdin/stdout/etc
         if path == '/':
             st.st_nlink = 2
             st.st_mode = stat.S_IFDIR | 0777
         else:
+            # return the current length of the ring buffer??
+            # how to deal with thing like tail which expect the file
+            # to actually change?
             st.st_size = 100
 
         return st
@@ -112,7 +118,7 @@ class processfs(fuse.Fuse):
     def unlink(self, path):
         self.files.pop(path)
 
-    # another noop - makes file writes happy
+    # another noop - makes some file writes happy
     @has_ent
     def truncate(self, path, size):
         print 'truncate(%s)' % path
