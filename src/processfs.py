@@ -16,7 +16,6 @@ def has_ent (func):
         return func(self, path, *args,**kwargs)
     return wrapper
 
-
 class processfs(fuse.Fuse):
     def __init__(self, *args, **kw):
         fuse.Fuse.__init__(self, *args, **kw)
@@ -29,7 +28,7 @@ class processfs(fuse.Fuse):
         print 'getattr(%s)' % path
 
         st = fuse.Stat()
-        st.st_mode = stat.S_IFREG | 0444
+        st.st_mode = stat.S_IFREG | 0600
         st.st_nlink = 1
         st.st_atime = int(time.time())
         st.st_mtime = st.st_atime
@@ -37,7 +36,7 @@ class processfs(fuse.Fuse):
 
         if path == '/':
             st.st_nlink = 2
-            st.st_mode = stat.S_IFDIR | 0755
+            st.st_mode = stat.S_IFDIR | 0777
         else:
             st.st_size = 100
 
@@ -66,18 +65,24 @@ class processfs(fuse.Fuse):
 
         # do basic exec and perm checks - return EINVAL if user would
         # no be able to exec buf
+        if self.files[path].has_key('process'):
+            return -errno.EACCES
         self.files[path]['process'] = buf
         return len(buf)
 
     # obvious - see the syscall
+    @has_ent
     def open(self, path, flags):
         print 'open(%s)' % path
+        return 0
 
     # called after create to set times
+    @has_ent
     def utime(self, path, times):
         print 'utime(%s)' % path
 
     # called after write to "commit" data to "disk"
+    @has_ent
     def flush(self, path):
         print 'flush(%s)' % path
 
@@ -90,4 +95,10 @@ class processfs(fuse.Fuse):
     @has_ent
     def unlink(self, path):
         self.files.pop(path)
+
+    # another noop - makes file writes happy
+    @has_ent
+    def truncate(self, path, size):
+        print 'truncate(%s)' % path
+        return 0
 
