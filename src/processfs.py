@@ -4,6 +4,9 @@ import errno
 import fuse
 import stat
 import time
+import os
+
+import shlex
 from functools import wraps
 
 fuse.fuse_python_api = (0, 2)
@@ -61,15 +64,25 @@ class processfs(fuse.Fuse):
     ## stdin
     @has_ent
     def write(self, path, buf, offset):
-        print 'write(%s, %s)' % (path, buf)
+        print 'write(%s, %s)' % (path, buf.strip())
 
-        # do basic exec and perm checks - return EINVAL if user would
-        # no be able to exec buf
-
-        # Until pipes are worked out, retuen EACCES if a proc is already
+        # Until pipes are worked out, return EACCES if a proc is already
         # associated with the file
         if self.files[path].has_key('process'):
             return -errno.EACCES
+
+        ## tokenize (space) the buffer
+        self.files[path]['process'] = shlex.split(buf)
+
+        # do basic exec and perm checks - return EINVAL if user would
+        # no be able to exec buf.
+        # These may need to be seperated once chown/chgrp work
+        if offset > 0 or \
+            not os.access(self.files[path]['process'][0], os.X_OK):
+            ## offset should always be 0 and must be able to exe the path
+            return -errno.EINVAL
+
+
         self.files[path]['process'] = buf
         return len(buf)
 
