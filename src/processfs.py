@@ -4,8 +4,17 @@ import errno
 import fuse
 import stat
 import time
+from functools import wraps
 
 fuse.fuse_python_api = (0, 2)
+
+def has_ent (func):
+    @wraps(func)
+    def wrapper(self, path, *args,**kwargs):
+        if path not in self.files.keys() and path != '/':
+            return -errno.ENOENT
+        return func(self, path, *args,**kwargs)
+    return wrapper
 
 
 class processfs(fuse.Fuse):
@@ -15,11 +24,9 @@ class processfs(fuse.Fuse):
         self.files = dict()
 
     ## NEED - returns dir and file stat struct
+    @has_ent
     def getattr(self, path):
         print 'getattr(%s)' % path
-
-        if path not in self.files.keys() and path != '/':
-            return -errno.ENOENT
 
         st = fuse.Stat()
         st.st_mode = stat.S_IFREG | 0444
@@ -53,10 +60,9 @@ class processfs(fuse.Fuse):
     # Note, offset is always ignores. There'll be no appending here
     ## if we are not creating a new file, buf should be sent to proc
     ## stdin
+    @has_ent
     def write(self, path, buf, offset):
         print 'write(%s, %s)' % (path, buf)
-        if path not in self.files.keys():
-            return -errno.ENOENT
 
         # do basic exec and perm checks - return EINVAL if user would
         # no be able to exec buf
@@ -76,8 +82,12 @@ class processfs(fuse.Fuse):
         print 'flush(%s)' % path
 
     # should connect to proc ring buffer
+    @has_ent
     def read(self, path, len, offset):
-        if path not in self.files.keys():
-            return -errno.ENOENT
 
         return self.files[path]['process'][offset:offset+len]
+
+    @has_ent
+    def unlink(self, path):
+        self.files.pop(path)
+
