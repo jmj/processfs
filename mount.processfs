@@ -2,7 +2,7 @@
 
 ## testing
 import sys
-sys.path.append('/home/jmjone/src/processfs/src')
+sys.path.append('/home/jmjone/src')
 
 from processfs.fs import processfs
 
