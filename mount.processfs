@@ -4,7 +4,7 @@
 import sys
 sys.path.append('/home/jmjone/src/processfs/src')
 
-from processfs import processfs
+from processfs.fs import processfs
 
 if __name__ == '__main__':
     fs = processfs()
