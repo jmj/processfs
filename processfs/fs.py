@@ -11,10 +11,14 @@ from functools import wraps
 
 fuse.fuse_python_api = (0, 2)
 
+_vfiles = ['stdin', 'stdout', 'stderr', 'cmdline', 'control', 'status']
+
 def has_ent (func):
     @wraps(func)
     def wrapper(self, path, *args,**kwargs):
-        if path not in self.files.keys() and path != '/':
+        if path not in self.files.keys() and path != '/' and  \
+                path not in ['%s/%s' % (x,z) for x in self.files.keys() \
+                for z in _vfiles]:
             return -errno.ENOENT
         return func(self, path, *args,**kwargs)
     return wrapper
@@ -31,23 +35,18 @@ class processfs(fuse.Fuse):
         print 'getattr(%s)' % path
 
         st = fuse.Stat()
-        st.st_mode = stat.S_IFREG | 0600
-        st.st_nlink = 1
-        st.st_atime = int(time.time())
-        st.st_mtime = st.st_atime
-        st.st_ctime = st.st_atime
 
-        # we don't do subdirs.  Is there a need?
-        ## Should each proc be a dir?  May have interesting possibilities
-        ##  with files like cmd line/stdin/stdout/etc
-        if path == '/':
+        if path in self.files.keys() or path == '/':
             st.st_nlink = 2
             st.st_mode = stat.S_IFDIR | 0777
         else:
-            # return the current length of the ring buffer??
-            # how to deal with thing like tail which expect the file
-            # to actually change?
-            st.st_size = 100
+            st.st_mode = stat.S_IFREG | 0600
+            st.st_nlink = 1
+
+        st.st_atime = int(time.time())
+        st.st_mtime = st.st_atime
+        st.st_ctime = st.st_atime
+        st.st_size = 100
 
         return st
 
@@ -56,13 +55,17 @@ class processfs(fuse.Fuse):
         ## always return . and ..
         for p in ['.', '..']:
             yield fuse.Direntry(p)
-        for p in self.files.keys():
-            yield fuse.Direntry(p[1:])
+        if path == '/':
+            for p in self.files.keys():
+                yield fuse.Direntry(p[1:])
+        elif path in self.files.keys():
+            for p in _vfiles:
+                yield fuse.Direntry(p)
 
     # called when a write op causes a new file to exist
-    def create(self, path, flag, mode):
-        print 'create(%s)' % path
-        self.files[path] = dict()
+    #def create(self, path, flag, mode):
+    #    print 'create(%s)' % path
+    #    self.files[path] = dict()
 
     # obvious - see the syscall
     # Note, offset is always ignored. There'll be no appending here
@@ -124,3 +127,5 @@ class processfs(fuse.Fuse):
         print 'truncate(%s)' % path
         return 0
 
+    def mkdir(self, path, mode):
+        self.files[path] = dict()
