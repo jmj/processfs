@@ -39,6 +39,9 @@ class processfs(fuse.Fuse):
         self._svcmanager = Manager(self._svc_queue)
         self.p_lock = threading.Lock()
 
+        # start the process manager thread
+        self._svcmanager.start()
+
     ## NEED - returns dir and file stat struct
     @has_ent
     def getattr(self, path):
