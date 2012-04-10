@@ -5,6 +5,7 @@ import psutil
 
 START = 1
 STOP = 2
+MKPROC = 3
 
 class Manager(threading.thread):
     def __init__(self, queue):
@@ -35,18 +36,23 @@ class Manager(threading.thread):
             self._startproc(proc[1])
         elif proc[0] == STOP:
             self._stopproc(proc[1])
+        elif proc[0] == MKPROC:
+            self._mkproc(proc[1])
         else:
             raise AttributeError('Missing Action')
 
     def _startproc(self, proc):
-        if proc[0] in self.procs.keys():
-            raise ValueError('process with name %s already exists' % (proc))
-        self.proc[proc[0]] = proc[1]
+        pass
 
     def _stopproc(self, procid):
         if procid not in self.procs.keys():
             raise ValueError('process with name %s does not exist' % (procid))
         self.procs.pop(procid)
+
+    def _mkproc(self, procid):
+        if procid in self.procs.keys():
+            raise ValueError('process with name %s already exists' % (proc))
+        self.proc[procid] = None
 
     #def _restart(self, procid):
     #    proc = self.procs[procid]

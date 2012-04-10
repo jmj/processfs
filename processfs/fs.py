@@ -11,7 +11,8 @@ import threading
 import Queue
 from functools import wraps
 
-from processfs import Manager
+from processfs.svcmanager import Manager
+import processfs.svcmanager as svcmanager
 
 fuse.fuse_python_api = (0, 2)
 
@@ -128,7 +129,7 @@ class processfs(fuse.Fuse):
 
     @has_ent
     def unlink(self, path):
-        self.files.pop(path)
+        print 'unlink(%s)' % path
 
     # another noop - makes some file writes happy
     @has_ent
@@ -137,4 +138,4 @@ class processfs(fuse.Fuse):
         return 0
 
     def mkdir(self, path, mode):
-        self.files[path] = dict()
+        self._svc_queue.push([svcmanager.MKPROC, path])
