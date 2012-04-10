@@ -6,13 +6,10 @@ import psutil
 START = 1
 STOP = 2
 
-
 class Manager(threading.thread):
     def __init__(self, queue):
         super(Manager, self).__init__()
-
         self.procs = dict()
-
         self.queue = queue
         self.p_lock = threading.Lock()
 
@@ -42,7 +39,16 @@ class Manager(threading.thread):
             raise AttributeError('Missing Action')
 
     def _startproc(self, proc):
-        pass
+        if proc[0] in self.procs.keys():
+            raise ValueError('process with name %s already exists' % (proc))
+        self.proc[proc[0]] = proc[1]
 
     def _stopproc(self, procid):
-        pass
+        if procid not in self.procs.keys():
+            raise ValueError('process with name %s does not exist' % (procid))
+        self.procs.pop(procid)
+
+    #def _restart(self, procid):
+    #    proc = self.procs[procid]
+    #    self._stopproc(procid)
+    #    self._startproc(proc)

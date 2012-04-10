@@ -7,7 +7,11 @@ import time
 import os
 
 import shlex
+import threading
+import Queue
 from functools import wraps
+
+from processfs import Manager
 
 fuse.fuse_python_api = (0, 2)
 
@@ -16,10 +20,13 @@ _vfiles = ['stdin', 'stdout', 'stderr', 'cmdline', 'control', 'status']
 def has_ent (func):
     @wraps(func)
     def wrapper(self, path, *args,**kwargs):
-        if path not in self.files.keys() and path != '/' and  \
-                path not in ['%s/%s' % (x,z) for x in self.files.keys() \
-                for z in _vfiles]:
-            return -errno.ENOENT
+        vpaths = ['%s/%s' % (x,z) for x in self._svcmanager.procs.keys() \
+                for z in _vfiles]
+        vpaths.append('/')
+        vpaths.extend(self._svcmanager.procs.keys())
+        with self.p_lock:
+            if path not in vpaths:
+                return -errno.ENOENT
         return func(self, path, *args,**kwargs)
     return wrapper
 
@@ -27,7 +34,9 @@ class processfs(fuse.Fuse):
     def __init__(self, *args, **kw):
         fuse.Fuse.__init__(self, *args, **kw)
 
-        self.files = dict()
+        self._svc_queue = Queue.Queue()
+        self._svcmanager = Manager(self._svc_queue)
+        self.p_lock = threading.Lock()
 
     ## NEED - returns dir and file stat struct
     @has_ent
