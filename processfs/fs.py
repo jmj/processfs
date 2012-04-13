@@ -4,11 +4,7 @@ import errno
 import fuse
 import stat
 import time
-import os
-
-import shlex
-import threading
-import Queue
+#from multiprocessing import Queue
 from functools import wraps
 
 from processfs.svcmanager import Manager
@@ -21,13 +17,14 @@ _vfiles = ['stdin', 'stdout', 'stderr', 'cmdline', 'control', 'status']
 def has_ent (func):
     @wraps(func)
     def wrapper(self, path, *args,**kwargs):
+        print 'called %s %s %s' % (func, path, args)
+        print self._svcmanager.procs.keys()
         vpaths = ['%s/%s' % (x,z) for x in self._svcmanager.procs.keys() \
                 for z in _vfiles]
         vpaths.append('/')
         vpaths.extend(self._svcmanager.procs.keys())
-        with self.p_lock:
-            if path not in vpaths:
-                return -errno.ENOENT
+        if path not in vpaths:
+            return -errno.ENOENT
         return func(self, path, *args,**kwargs)
     return wrapper
 
@@ -35,11 +32,13 @@ class processfs(fuse.Fuse):
     def __init__(self, *args, **kw):
         fuse.Fuse.__init__(self, *args, **kw)
 
-        self._svc_queue = Queue.Queue()
-        self._svcmanager = Manager(self._svc_queue)
-        self.p_lock = threading.Lock()
+        self._svcmanager = Manager()
+        self._svc_queue = self._svcmanager.queue
+
+        print type(self._svc_queue)
 
         # start the process manager thread
+        print 'starting svc manager'
         self._svcmanager.start()
 
     ## NEED - returns dir and file stat struct
@@ -49,7 +48,7 @@ class processfs(fuse.Fuse):
 
         st = fuse.Stat()
 
-        if path in self.files.keys() or path == '/':
+        if path in self._svcmanager.procs.keys() or path == '/':
             st.st_nlink = 2
             st.st_mode = stat.S_IFDIR | 0777
         else:
@@ -68,17 +67,13 @@ class processfs(fuse.Fuse):
         ## always return . and ..
         for p in ['.', '..']:
             yield fuse.Direntry(p)
+        procs = self._svcmanager.procs.keys()
         if path == '/':
-            for p in self.files.keys():
+            for p in procs:
                 yield fuse.Direntry(p[1:])
-        elif path in self.files.keys():
+        elif path in procs:
             for p in _vfiles:
                 yield fuse.Direntry(p)
-
-    # called when a write op causes a new file to exist
-    #def create(self, path, flag, mode):
-    #    print 'create(%s)' % path
-    #    self.files[path] = dict()
 
     # obvious - see the syscall
     # Note, offset is always ignored. There'll be no appending here
@@ -88,25 +83,14 @@ class processfs(fuse.Fuse):
     def write(self, path, buf, offset):
         print 'write(%s, %s)' % (path, buf.strip())
 
-        # Until pipes are worked out, return EACCES if a proc is already
-        # associated with the file
-        if self.files[path].has_key('process'):
+        if path not in ['%s/%s' % (x,z) \
+                for x in self._svcmanager.procs.keys() \
+                for z in _vfiles]:
+            return -errno.EOPNOTSUPP
+
+        else:
+            # Implement later
             return -errno.EACCES
-
-        ## tokenize (space) the buffer
-        self.files[path]['process'] = shlex.split(buf)
-
-        # do basic exec and perm checks - return EINVAL if user would
-        # no be able to exec buf.
-        # These may need to be seperated once chown/chgrp work
-        if offset > 0 or \
-            not os.access(self.files[path]['process'][0], os.X_OK):
-            ## offset should always be 0 and must be able to exe the path
-            return -errno.EINVAL
-
-
-        self.files[path]['process'] = buf
-        return len(buf)
 
     # obvious - see the syscall
     @has_ent
@@ -141,4 +125,10 @@ class processfs(fuse.Fuse):
         return 0
 
     def mkdir(self, path, mode):
-        self._svc_queue.push([svcmanager.MKPROC, path])
+        print 'mkdir(%s, %s)' % (path, mode)
+        self._svc_queue.put([svcmanager.MKPROC, path])
+        self._svc_queue.join()
+        return 0
+
+    def fsdestroy(self, *args, **kw):
+        self._svcmanager.stop()
